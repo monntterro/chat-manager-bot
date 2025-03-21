@@ -14,10 +14,12 @@ import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -48,6 +50,9 @@ public class UrlDeleteProcessor {
 
 
         if (text != null) {
+            String lastName = message.getFrom().getLastName();
+            String username = message.getFrom().getFirstName() + (lastName == null ? "" : " " + lastName);
+            text = "%s:\n%s".formatted(username, text);
             if (!hasLinksInMessage(text, entities)) {
                 return;
             }
@@ -58,7 +63,9 @@ public class UrlDeleteProcessor {
             }
             entities = entities.stream()
                     .filter(entity -> !"text_link".equals(entity.getType()))
-                    .toList();
+                    .peek(entity -> entity.setOffset(entity.getOffset() + 2 + username.length()))
+                    .collect(Collectors.toCollection(ArrayList::new));
+            entities.add(userMention(message, username));
         }
 
         long chatId = message.getChatId();
@@ -108,6 +115,16 @@ public class UrlDeleteProcessor {
             bot.sendMessage(text, chatId, entities);
         }
         bot.deleteMessage(chatId, messageId);
+    }
+
+    private MessageEntity userMention(Message message, String username) {
+        return MessageEntity.builder()
+                .user(message.getFrom())
+                .type("text_mention")
+                .user(message.getFrom())
+                .offset(0)
+                .length(username.length())
+                .build();
     }
 
     private boolean hasLinksInMessage(String text, List<MessageEntity> entities) {

@@ -9,7 +9,5 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "telegram.bot")
 public class TelegramBotProperties {
     private String token;
-    private String url;
     private String username;
-    private String path;
 }

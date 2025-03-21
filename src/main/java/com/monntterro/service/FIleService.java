@@ -5,6 +5,7 @@ import com.monntterro.model.AlbumData;
 import com.monntterro.model.mediafile.MediaFile;
 import com.monntterro.model.mediafile.MediaType;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendMediaGroup;
 import org.telegram.telegrambots.meta.api.objects.*;
@@ -21,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class FIleService {
@@ -59,7 +61,7 @@ public class FIleService {
         if (albumData.getMediaFiles().size() == 1) {
             albumData.setCaption(caption);
             albumData.setMessageEntities(entities);
-            scheduler.schedule(() -> sendAlbumBack(message.getChatId(), mediaGroupId), 2, TimeUnit.SECONDS);
+            scheduler.schedule(() -> sendAlbumBack(message.getChatId(), mediaGroupId), 3, TimeUnit.SECONDS);
         }
 
     }
@@ -97,7 +99,7 @@ public class FIleService {
         try {
             bot.execute(sendMediaGroup);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
+            log.error(e.getMessage(), e);
         }
 
         albumCache.remove(mediaGroupId);

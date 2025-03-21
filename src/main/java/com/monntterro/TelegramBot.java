@@ -1,12 +1,14 @@
 package com.monntterro;
 
 import com.monntterro.config.props.TelegramBotProperties;
+import com.monntterro.handler.UpdateHandler;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.bots.TelegramWebhookBot;
+import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.updates.SetWebhook;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.Update;
@@ -15,41 +17,22 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import java.io.Serializable;
 import java.util.List;
 
+@Slf4j
 @Component
-public class TelegramBot extends TelegramWebhookBot {
+public class TelegramBot extends TelegramLongPollingBot {
     private final TelegramBotProperties properties;
+    private final UpdateHandler updateHandler;
 
     @Autowired
-    public TelegramBot(TelegramBotProperties properties) {
+    public TelegramBot(TelegramBotProperties properties, @Lazy UpdateHandler updateHandler) {
         super(properties.getToken());
         this.properties = properties;
-        registerWebhook();
-    }
-
-    @Override
-    public String getBotPath() {
-        return properties.getPath();
+        this.updateHandler = updateHandler;
     }
 
     @Override
     public String getBotUsername() {
         return properties.getUsername();
-    }
-
-    @Override
-    public BotApiMethod<?> onWebhookUpdateReceived(Update update) {
-        return null;
-    }
-
-    private void registerWebhook() {
-        SetWebhook setWebhook = SetWebhook.builder()
-                .url(properties.getUrl())
-                .build();
-        try {
-            this.setWebhook(setWebhook);
-        } catch (TelegramApiException e) {
-            throw new RuntimeException("Failed to set webhook", e);
-        }
     }
 
     public void sendMessage(String text, Long chatId, List<MessageEntity> entities) {
@@ -74,6 +57,15 @@ public class TelegramBot extends TelegramWebhookBot {
             super.execute(method);
         } catch (TelegramApiException e) {
             throw new RuntimeException("Failed to execute method", e);
+        }
+    }
+
+    @Override
+    public void onUpdateReceived(Update update) {
+        try {
+            updateHandler.handle(update);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
         }
     }
 }
