@@ -3,6 +3,7 @@ package com.monntterro.processor;
 import com.monntterro.TelegramBot;
 import com.monntterro.service.FIleService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendAudio;
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
@@ -24,10 +25,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class UrlDeleteProcessor {
-    private final Pattern urlPattern = Pattern.compile("(?i)\\b((?:https?|ftp)://|www\\.)([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}|\\d{1,3}(?:\\.\\d{1,3}){3}|\\[[a-fA-F0-9:]+])(:\\d{1,5})?(/\\S*)?");
+    private final Pattern urlPattern = Pattern.compile("(?i)((?:https?|ftp)://|www\\.)([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}|\\d{1,3}(?:\\.\\d{1,3}){3}|\\[[a-fA-F0-9:]+])(:\\d{1,5})?(/\\S*)?");
 
     private final TelegramBot bot;
     private final FIleService fIleService;
+
+    @Value("${telegram.secret-word-to-pass}")
+    private String secretWordToPass;
 
     public void process(Message message) throws TelegramApiException {
         List<MessageEntity> entities = Collections.emptyList();
@@ -56,16 +60,26 @@ public class UrlDeleteProcessor {
             if (!hasLinksInMessage(text, entities)) {
                 return;
             }
-            Matcher matcher = urlPattern.matcher(text);
-            while (matcher.find()) {
-                String url = matcher.group();
-                text = text.replace(url, "*".repeat(url.length()));
-            }
+
             entities = entities.stream()
                     .filter(entity -> !"text_link".equals(entity.getType()))
                     .peek(entity -> entity.setOffset(entity.getOffset() + 2 + username.length()))
                     .collect(Collectors.toCollection(ArrayList::new));
             entities.add(userMention(message, username));
+
+            Matcher matcher = urlPattern.matcher(text);
+            while (matcher.find()) {
+                String url = matcher.group();
+                int start = matcher.start();
+                if (start > secretWordToPass.length()) {
+                    String substring = text.substring(start - secretWordToPass.length(), start);
+                    if (secretWordToPass.equals(substring)) {
+                        text = text.replaceFirst(Pattern.quote(secretWordToPass + url), " ".repeat(secretWordToPass.length()) + url);
+                        continue;
+                    }
+                }
+                text = text.replace(url, "*".repeat(url.length()));
+            }
         }
 
         long chatId = message.getChatId();
