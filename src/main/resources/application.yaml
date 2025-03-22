@@ -7,6 +7,8 @@ spring:
 
 telegram:
   secret-word-to-pass: ${SECRET_WORD_TO_PASS}
+  urls:
+    white-list: ${URLS_WHITE_LIST}
   bot:
     token: ${BOT_TOKEN}
     username: ${BOT_USERNAME}

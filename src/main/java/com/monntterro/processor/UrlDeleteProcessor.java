@@ -32,6 +32,8 @@ public class UrlDeleteProcessor {
 
     @Value("${telegram.secret-word-to-pass}")
     private String secretWordToPass;
+    @Value("#{'${telegram.urls.white-list}'.replace('\\s+', '').split(',')}")
+    private List<String> urlsWhiteList;
 
     public void process(Message message) throws TelegramApiException {
         List<MessageEntity> entities = Collections.emptyList();
@@ -70,6 +72,9 @@ public class UrlDeleteProcessor {
             Matcher matcher = urlPattern.matcher(text);
             while (matcher.find()) {
                 String url = matcher.group();
+                if (urlsWhiteList.stream().anyMatch(url::startsWith)) {
+                    continue;
+                }
                 int start = matcher.start();
                 if (start > secretWordToPass.length()) {
                     String substring = text.substring(start - secretWordToPass.length(), start);
