@@ -1,0 +1,43 @@
+stages:
+  - build jar
+  - build and push docker image
+  - deploy
+
+build:
+  image: gradle:8.5-jdk17
+  stage: build jar
+  script:
+    - gradle clean bootJar
+  artifacts:
+    paths:
+      - build/libs/*.jar
+  only:
+    - master
+
+docker build:
+  services:
+    - docker:19.03.13-dind
+  image: docker:19.03.13-dind
+  stage: build and push docker image
+  script:
+    - docker build -t $DOCKER_REPO:latest .
+    - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD docker.io
+    - docker push $DOCKER_REPO:latest
+  only:
+    - master
+
+deploy:
+  image: ubuntu:latest
+  stage: deploy
+  before_script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config
+  script:
+    - pwd
+    - ssh root@$SERVER "docker login -u $DOCKER_USER -p $DOCKER_PASSWORD docker.io; docker stop $APP_NAME; docker system prune -a -f; docker pull $DOCKER_REPO:latest; docker run -d --name $APP_NAME --env-file ~/envs/$APP_NAME/.env --restart=on-failure $DOCKER_REPO; docker logout"
+  only:
+    - master
