@@ -58,10 +58,10 @@ public class FIleService {
 
         albumData.getMediaFiles().add(mediaFile);
 
-        if (albumData.getMediaFiles().size() == 1) {
+        if (albumData.getCaption() == null) {
             albumData.setCaption(caption);
             albumData.setMessageEntities(entities);
-            scheduler.schedule(() -> sendAlbumBack(message.getChatId(), mediaGroupId), 3, TimeUnit.SECONDS);
+            scheduler.schedule(() -> sendAlbumBack(message.getChatId(), mediaGroupId), 4, TimeUnit.SECONDS);
         }
 
     }

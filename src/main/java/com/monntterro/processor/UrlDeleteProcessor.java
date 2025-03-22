@@ -105,6 +105,7 @@ public class UrlDeleteProcessor {
                     .caption(text)
                     .captionEntities(entities)
                     .video(new InputFile(message.getVideo().getFileId()))
+                    .thumbnail(new InputFile(message.getVideo().getThumbnail().getFileId()))
                     .chatId(chatId)
                     .build();
             bot.execute(sendVideo);
