@@ -15,10 +15,10 @@ build:
     - main
 
 docker build:
-  image: docker:19.03.13
+  image: docker:19.03.13-dind
   stage: build and push docker image
   services:
-    - name: docker:19.03.13
+    - name: docker:19.03.13-dind
       alias: docker
   variables:
     DOCKER_HOST: tcp://docker:2375
