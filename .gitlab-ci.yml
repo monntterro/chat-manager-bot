@@ -16,8 +16,8 @@ build:
 
 docker build:
   services:
-    - docker:19.03.13-dind
-  image: docker:19.03.13-dind
+    - docker:19.03.1
+  image: docker:19.03.1
   stage: build and push docker image
   script:
     - docker build -t $DOCKER_REPO:latest .
