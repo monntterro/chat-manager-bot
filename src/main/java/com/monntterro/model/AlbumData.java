@@ -15,5 +15,5 @@ import java.util.List;
 public class AlbumData {
     private String caption;
     private List<MediaFile> mediaFiles = new ArrayList<>();
-    private List<MessageEntity> messageEntities = new ArrayList<>();
+    private List<MessageEntity> captionEntities = new ArrayList<>();
 }

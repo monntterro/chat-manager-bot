@@ -2,8 +2,8 @@ package com.monntterro.processor;
 
 import com.monntterro.TelegramBot;
 import com.monntterro.service.FIleService;
+import com.monntterro.service.MessageTextService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.methods.send.SendAudio;
 import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
@@ -15,25 +15,15 @@ import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 public class UrlDeleteProcessor {
-    private final Pattern urlPattern = Pattern.compile("(?i)((?:https?|ftp)://|www\\.)([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}|\\d{1,3}(?:\\.\\d{1,3}){3}|\\[[a-fA-F0-9:]+])(:\\d{1,5})?(/\\S*)?");
-
     private final TelegramBot bot;
     private final FIleService fIleService;
-
-    @Value("${telegram.secret-word-to-pass}")
-    private String secretWordToPass;
-    @Value("#{'${telegram.urls.white-list}'.replace('\\s+', '').split(',')}")
-    private List<String> urlsWhiteList;
+    private final MessageTextService messageTextService;
 
     public void process(Message message) throws TelegramApiException {
         List<MessageEntity> entities = Collections.emptyList();
@@ -50,53 +40,25 @@ public class UrlDeleteProcessor {
             }
         }
 
-        if (text == null && message.getMediaGroupId() == null) {
-            return;
-        }
-
-
-        if (text != null) {
-            String lastName = message.getFrom().getLastName();
-            String username = message.getFrom().getFirstName() + (lastName == null ? "" : " " + lastName);
-            text = "%s:\n%s".formatted(username, text);
-            if (!hasLinksInMessage(text, entities)) {
-                return;
-            }
-
-            entities = entities.stream()
-                    .filter(entity -> !"text_link".equals(entity.getType()))
-                    .peek(entity -> entity.setOffset(entity.getOffset() + 2 + username.length()))
-                    .collect(Collectors.toCollection(ArrayList::new));
-            entities.add(userMention(message, username));
-
-            Matcher matcher = urlPattern.matcher(text);
-            while (matcher.find()) {
-                String url = matcher.group();
-                if (urlsWhiteList.stream().anyMatch(url::startsWith)) {
-                    continue;
-                }
-                int start = matcher.start();
-                if (start > secretWordToPass.length()) {
-                    String substring = text.substring(start - secretWordToPass.length(), start);
-                    if (secretWordToPass.equals(substring)) {
-                        text = text.replaceFirst(Pattern.quote(secretWordToPass + url), " ".repeat(secretWordToPass.length()) + url);
-                        continue;
-                    }
-                }
-                text = text.replace(url, "*".repeat(url.length()));
-            }
-        }
-
-        long chatId = message.getChatId();
-        int messageId = message.getMessageId();
-
         if (message.getMediaGroupId() != null) {
             if (message.hasPhoto()) {
                 fIleService.handlePhotoAlbum(message, text, entities);
             } else if (message.hasVideo()) {
                 fIleService.handleVideoAlbum(message, text, entities);
             }
-        } else if (message.hasPhoto()) {
+            return;
+        }
+
+        if (text == null
+            || !messageTextService.hasLinksInMessage(text, entities)
+            || messageTextService.hasOnlyAllowedLinks(text, entities)) {
+            return;
+        }
+
+        text = messageTextService.deleteLinks(message, text, entities);
+        long chatId = message.getChatId();
+        int messageId = message.getMessageId();
+        if (message.hasPhoto()) {
             List<PhotoSize> photos = message.getPhoto();
             SendPhoto sendPhoto = SendPhoto.builder()
                     .caption(text)
@@ -135,25 +97,6 @@ public class UrlDeleteProcessor {
             bot.sendMessage(text, chatId, entities);
         }
         bot.deleteMessage(chatId, messageId);
-    }
-
-    private MessageEntity userMention(Message message, String username) {
-        return MessageEntity.builder()
-                .user(message.getFrom())
-                .type("text_mention")
-                .user(message.getFrom())
-                .offset(0)
-                .length(username.length())
-                .build();
-    }
-
-    private boolean hasLinksInMessage(String text, List<MessageEntity> entities) {
-        if (urlPattern.matcher(text).find()) {
-            return true;
-        }
-        return entities.stream()
-                .map(MessageEntity::getType)
-                .anyMatch(type -> "text_link".equals(type) || "url".equals(type));
     }
 }
 

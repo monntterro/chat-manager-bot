@@ -30,6 +30,7 @@ public class FIleService {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     private final TelegramBot bot;
+    private final MessageTextService messageTextService;
 
     public void handleVideoAlbum(Message message, String caption, List<MessageEntity> entities) {
         Video video = message.getVideo();
@@ -39,7 +40,7 @@ public class FIleService {
             thumbnailId = thumbnail.getFileId();
         }
 
-        MediaFile videoFile = new MediaFile(video.getFileId(), thumbnailId, MediaType.VIDEO);
+        MediaFile videoFile = new MediaFile(video.getFileId(), thumbnailId, MediaType.VIDEO, message);
         handleAlbumMedia(message, videoFile, caption, entities);
     }
 
@@ -48,7 +49,7 @@ public class FIleService {
                 .max(Comparator.comparingInt(PhotoSize::getFileSize))
                 .map(PhotoSize::getFileId)
                 .orElseThrow();
-        MediaFile photo = new MediaFile(fileId, null, MediaType.PHOTO);
+        MediaFile photo = new MediaFile(fileId, null, MediaType.PHOTO, message);
         handleAlbumMedia(message, photo, caption, entities);
     }
 
@@ -57,40 +58,55 @@ public class FIleService {
         AlbumData albumData = albumCache.computeIfAbsent(mediaGroupId, k -> new AlbumData());
 
         albumData.getMediaFiles().add(mediaFile);
-
         if (albumData.getCaption() == null) {
             albumData.setCaption(caption);
-            albumData.setMessageEntities(entities);
+            albumData.setCaptionEntities(entities);
             scheduler.schedule(() -> sendAlbumBack(message.getChatId(), mediaGroupId), 4, TimeUnit.SECONDS);
         }
-
     }
 
     private void sendAlbumBack(Long chatId, String mediaGroupId) {
         AlbumData albumData = albumCache.get(mediaGroupId);
+
+        boolean allowedToSend = albumData.getMediaFiles().stream()
+                .map(MediaFile::getMessage)
+                .filter(message -> message.getCaption() != null)
+                .allMatch(message -> {
+                    String messageCaption = message.getCaption();
+                    List<MessageEntity> captionEntities = message.getCaptionEntities();
+                    return messageTextService.hasLinksInMessage(messageCaption, captionEntities)
+                           && messageTextService.hasOnlyAllowedLinks(messageCaption, captionEntities);
+                });
+
+        if (allowedToSend) {
+            return;
+        }
+
         List<InputMedia> mediaList = new ArrayList<>();
         for (int i = 0; i < albumData.getMediaFiles().size(); i++) {
             MediaFile mediaFile = albumData.getMediaFiles().get(i);
+            List<MessageEntity> entities = albumData.getCaptionEntities();
+            String caption = albumData.getCaption();
+
             if (mediaFile.getMediaType() == MediaType.PHOTO) {
                 InputMediaPhoto mediaPhoto = new InputMediaPhoto(mediaFile.getFileId());
                 if (i == 0) {
-                    if (albumData.getCaption() != null) {
-                        mediaPhoto.setCaption(albumData.getCaption());
-                        mediaPhoto.setCaptionEntities(albumData.getMessageEntities());
-                    }
+                    caption = messageTextService.deleteLinks(mediaFile.getMessage(), caption, entities);
+                    mediaPhoto.setCaption(caption);
+                    mediaPhoto.setCaptionEntities(entities);
                 }
                 mediaList.add(mediaPhoto);
             } else if (mediaFile.getMediaType() == MediaType.VIDEO) {
                 InputMediaVideo mediaVideo = new InputMediaVideo(mediaFile.getFileId());
                 if (i == 0) {
-                    if (albumData.getCaption() != null) {
-                        mediaVideo.setThumbnail(new InputFile(mediaFile.getThumbnailId()));
-                        mediaVideo.setCaption(albumData.getCaption());
-                        mediaVideo.setCaptionEntities(albumData.getMessageEntities());
-                    }
+                    caption = messageTextService.deleteLinks(mediaFile.getMessage(), caption, entities);
+                    mediaVideo.setThumbnail(new InputFile(mediaFile.getThumbnailId()));
+                    mediaVideo.setCaption(caption);
+                    mediaVideo.setCaptionEntities(entities);
                 }
                 mediaList.add(mediaVideo);
             }
+            bot.deleteMessage(chatId, albumData.getMediaFiles().get(i).getMessage().getMessageId());
         }
 
         SendMediaGroup sendMediaGroup = new SendMediaGroup();
