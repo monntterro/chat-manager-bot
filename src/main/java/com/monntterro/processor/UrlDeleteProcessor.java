@@ -49,9 +49,10 @@ public class UrlDeleteProcessor {
             return;
         }
 
-        if (text == null
-            || !messageTextService.hasLinksInMessage(text, entities)
-            || messageTextService.hasOnlyAllowedLinks(text, entities)) {
+        if (message.getForwardFromChat() == null &&
+            (text == null
+             || !messageTextService.hasLinksInMessage(text, entities)
+             || messageTextService.hasOnlyAllowedLinks(text, entities))) {
             return;
         }
 
