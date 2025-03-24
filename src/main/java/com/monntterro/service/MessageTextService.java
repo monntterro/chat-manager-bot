@@ -1,19 +1,29 @@
 package com.monntterro.service;
 
+import com.monntterro.TelegramBot;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat;
+import org.telegram.telegrambots.meta.api.objects.Chat;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
+@Slf4j
 @Service
+@RequiredArgsConstructor
 public class MessageTextService {
-    private final Pattern urlPattern = Pattern.compile("(?i)((?:https?|ftp)://|www\\.)([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}|\\d{1,3}(?:\\.\\d{1,3}){3}|\\[[a-fA-F0-9:]+])(:\\d{1,5})?(/\\S*)?");
+    private final Pattern urlPattern = Pattern.compile("(?i)(?:(?:(?:https?|ftp)://|www\\.)([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}|\\d{1,3}(?:\\.\\d{1,3}){3}|\\[[a-fA-F0-9:]+])(:\\d{1,5})?(/\\S*)?|(t\\.me/\\S+))");
+    private final Pattern mentionPattern = Pattern.compile("@[a-zA-Z0-9_]+");
+
+    private final TelegramBot bot;
 
     @Value("${telegram.secret-word-to-pass}")
     private String secretWordToPass;
@@ -33,13 +43,28 @@ public class MessageTextService {
                     return true;
                 })
                 .peek(entity -> entity.setOffset(entity.getOffset() + 2 + username.length()))
-                .collect(Collectors.toList());
-
+                .toList();
         entities.clear();
         entities.addAll(filteredEntities);
         entities.add(userMention(message, username));
 
-        Matcher matcher = urlPattern.matcher(text);
+        Matcher matcher = mentionPattern.matcher(text);
+        while (matcher.find()) {
+            String mention = matcher.group();
+            GetChat getChat = new GetChat(mention);
+            try {
+                Chat chat = bot.execute(getChat);
+                if (chat.getType().equals("private")) {
+                    continue;
+                }
+
+                text = text.replace(mention, "*".repeat(mention.length()));
+            } catch (TelegramApiException e) {
+                log.error(e.getMessage(), e);
+            }
+        }
+
+        matcher = urlPattern.matcher(text);
         while (matcher.find()) {
             String url = matcher.group();
             if (urlsWhiteList.stream().anyMatch(url::startsWith)) {
