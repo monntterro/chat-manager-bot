@@ -57,10 +57,16 @@ public class MessageTextService {
                 if (chat.getType().equals("private")) {
                     continue;
                 }
-
+                int start = matcher.start();
+                if (start > secretWordToPass.length()) {
+                    String substring = text.substring(start - secretWordToPass.length(), start);
+                    if (secretWordToPass.equals(substring)) {
+                        text = text.replaceFirst(Pattern.quote(secretWordToPass + mention), " ".repeat(secretWordToPass.length()) + mention);
+                        continue;
+                    }
+                }
                 text = text.replace(mention, "*".repeat(mention.length()));
-            } catch (TelegramApiException e) {
-                log.error(e.getMessage(), e);
+            } catch (TelegramApiException ignored) {
             }
         }
 
@@ -84,7 +90,7 @@ public class MessageTextService {
     }
 
     public boolean hasLinksInMessage(String text, List<MessageEntity> entities) {
-        if (urlPattern.matcher(text).find()) {
+        if (urlPattern.matcher(text).find() || mentionPattern.matcher(text).find()) {
             return true;
         }
         return entities.stream()
@@ -109,6 +115,22 @@ public class MessageTextService {
         boolean onlyAllowedTextLinks = entities.stream()
                 .filter(entity -> "text_link".equals(entity.getType()))
                 .allMatch(entity -> urlsWhiteList.stream().anyMatch(entity.getUrl()::startsWith));
-        return onlyAllowedUrls && onlyAllowedTextLinks;
+        return onlyAllowedUrls && onlyAllowedTextLinks && hasOnlyUserMentions(text);
+    }
+
+    private boolean hasOnlyUserMentions(String text) {
+        Matcher matcher = mentionPattern.matcher(text);
+        while (matcher.find()) {
+            String mention = matcher.group();
+            GetChat getChat = new GetChat(mention);
+            try {
+                Chat chat = bot.execute(getChat);
+                if (!chat.getType().equals("private")) {
+                    return false;
+                }
+            } catch (TelegramApiException ignored) {
+            }
+        }
+        return true;
     }
 }
