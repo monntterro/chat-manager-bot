@@ -15,7 +15,7 @@ import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.api.objects.PhotoSize;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -26,7 +26,7 @@ public class UrlDeleteProcessor {
     private final MessageTextService messageTextService;
 
     public void process(Message message) throws TelegramApiException {
-        List<MessageEntity> entities = Collections.emptyList();
+        List<MessageEntity> entities = new ArrayList<>();
         String text = null;
         if (message.hasText()) {
             text = message.getText();
