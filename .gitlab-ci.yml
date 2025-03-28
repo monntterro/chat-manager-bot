@@ -15,14 +15,10 @@ build:
     - main
 
 docker build:
-  image: docker:19.03.13-dind
   stage: build and push docker image
+  image: docker:19.03.13-dind
   services:
-    - name: docker:19.03.13-dind
-      alias: docker
-  variables:
-    DOCKER_HOST: tcp://docker:2375
-    DOCKER_TLS_CERTDIR: ""
+    - docker:19.03.13-dind
   script:
     - docker build -t $DOCKER_REPO:latest .
     - docker login -u $DOCKER_USER -p $DOCKER_PASSWORD docker.io
@@ -31,7 +27,7 @@ docker build:
     - main
 
 deploy:
-  image: ubuntu:latest
+  image: ubuntu:22.04
   stage: deploy
   before_script:
     - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
