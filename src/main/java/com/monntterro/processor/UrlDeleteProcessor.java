@@ -24,27 +24,38 @@ public class UrlDeleteProcessor {
         List<MessageEntity> entities = extractEntities(message);
 
         if (message.getMediaGroupId() != null) {
-            if (message.hasPhoto()) {
-                fileService.handlePhotoAlbum(message, text, entities);
-            } else if (message.hasVideo()) {
-                fileService.handleVideoAlbum(message, text, entities);
-            }
+            processMediaGroup(message, text, entities);
             return;
         }
-
-        if (message.getForwardFromChat() == null &&
-            (text == null
-             || !messageTextService.hasLinksInMessage(text, entities)
-             || messageTextService.hasOnlyAllowedLinks(text, entities))) {
+        if (shouldSkipProcessing(message, text, entities)) {
             return;
         }
 
         ProcessedMessage processedMessage = messageTextService.deleteLinks(message, text, entities);
         text = processedMessage.text();
         entities = processedMessage.entities();
+        sendProcessedMessage(message, text, entities);
 
+        bot.deleteMessage(message.getChatId(), message.getMessageId());
+    }
+
+    private void processMediaGroup(Message message, String text, List<MessageEntity> entities) {
+        if (message.hasPhoto()) {
+            fileService.handlePhotoAlbum(message, text, entities);
+        } else if (message.hasVideo()) {
+            fileService.handleVideoAlbum(message, text, entities);
+        }
+    }
+
+    private boolean shouldSkipProcessing(Message message, String text, List<MessageEntity> entities) {
+        return message.getForwardFromChat() == null &&
+               (text == null ||
+                !messageTextService.hasLinksInMessage(text, entities) ||
+                messageTextService.hasOnlyAllowedLinks(text, entities));
+    }
+
+    private void sendProcessedMessage(Message message, String text, List<MessageEntity> entities) {
         long chatId = message.getChatId();
-        int messageId = message.getMessageId();
 
         if (message.hasPhoto()) {
             bot.sendPhoto(text, chatId, entities, message.getPhoto());
@@ -56,11 +67,15 @@ public class UrlDeleteProcessor {
             bot.sendAudio(text, chatId, entities, message.getAudio());
         } else if (message.hasAnimation()) {
             bot.sendAnimation(text, chatId, entities, message.getAnimation());
+        } else if (message.hasSticker()) {
+            bot.sendSticker(chatId, message.getSticker());
+        } else if (message.hasVideoNote()) {
+            bot.sendVideoNote(chatId, message.getVideoNote());
+        } else if (message.hasVoice()) {
+            bot.sendVoice(text, chatId, entities, message.getVoice());
         } else {
             bot.sendMessage(text, chatId, entities);
         }
-
-        bot.deleteMessage(chatId, messageId);
     }
 
     private String extractText(Message message) {
@@ -81,5 +96,3 @@ public class UrlDeleteProcessor {
         return new ArrayList<>();
     }
 }
-
-

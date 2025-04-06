@@ -12,6 +12,7 @@ import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage
 import org.telegram.telegrambots.meta.api.objects.*;
 import org.telegram.telegrambots.meta.api.objects.games.Animation;
 import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
+import org.telegram.telegrambots.meta.api.objects.stickers.Sticker;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.List;
@@ -157,6 +158,51 @@ public class TelegramBot extends TelegramLongPollingBot {
 
         try {
             this.execute(sendAnimation);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendSticker(long chatId, Sticker sticker) {
+        SendSticker sendSticker = SendSticker.builder()
+                .chatId(chatId)
+                .sticker(new InputFile(sticker.getFileId()))
+                .emoji(sticker.getEmoji())
+                .build();
+
+        try {
+            this.execute(sendSticker);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendVideoNote(long chatId, VideoNote videoNote) {
+        SendVideoNote sendVideoNote = SendVideoNote.builder()
+                .chatId(chatId)
+                .videoNote(new InputFile(videoNote.getFileId()))
+                .build();
+        if (videoNote.getThumbnail() != null) {
+            sendVideoNote.setThumbnail(new InputFile(videoNote.getThumbnail().getFileId()));
+        }
+
+        try {
+            this.execute(sendVideoNote);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendVoice(String caption, long chatId, List<MessageEntity> captionEntities, Voice voice) {
+        SendVoice sendVoice = SendVoice.builder()
+                .caption(caption)
+                .chatId(chatId)
+                .captionEntities(captionEntities)
+                .voice(new InputFile(voice.getFileId()))
+                .build();
+
+        try {
+            this.execute(sendVoice);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
