@@ -1,6 +1,7 @@
 package com.monntterro.service;
 
 import com.monntterro.TelegramBot;
+import com.monntterro.service.model.ProcessedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -11,15 +12,22 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.MatchResult;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class MessageTextService {
+    private static final String TEXT_LINK_TYPE = "text_link";
+    private static final String URL_TYPE = "url";
+    private static final String TEXT_MENTION_TYPE = "text_mention";
+    private static final String PRIVATE_CHAT_TYPE = "private";
+
     private final Pattern urlPattern = Pattern.compile("(?i)(?:(?:(?:https?|ftp)://|www\\.)([a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}|\\d{1,3}(?:\\.\\d{1,3}){3}|\\[[a-fA-F0-9:]+])(:\\d{1,5})?(/\\S*)?|(t\\.me/\\S+))");
     private final Pattern mentionPattern = Pattern.compile("@[a-zA-Z0-9_]+");
 
@@ -30,105 +38,144 @@ public class MessageTextService {
     @Value("#{'${telegram.urls.white-list}'.split(',\\s+')}")
     private List<String> urlsWhiteList;
 
-    public String deleteLinks(Message message, String text, List<MessageEntity> entities) {
-        String lastName = message.getFrom().getLastName();
-        String username = message.getFrom().getFirstName() + (lastName == null ? "" : " " + lastName);
-        text = "%s:\n%s".formatted(username, text);
+    public ProcessedMessage deleteLinks(Message message, String text, List<MessageEntity> entities) {
+        String username = formatUsername(message);
+        String formattedText = "%s:\n%s".formatted(username, text);
 
-        List<MessageEntity> filteredEntities = entities.stream()
-                .filter(entity -> {
-                    if ("text_link".equals(entity.getType())) {
-                        return urlsWhiteList.stream().anyMatch(entity.getUrl()::startsWith);
-                    }
-                    return true;
-                })
-                .peek(entity -> entity.setOffset(entity.getOffset() + 2 + username.length()))
-                .toList();
-        entities.clear();
-        entities.addAll(filteredEntities);
-        entities.add(userMention(message, username));
+        List<MessageEntity> adjustedEntities = adjustEntities(entities, username);
+        adjustedEntities.add(createUserMention(message, username));
 
-        Matcher matcher = mentionPattern.matcher(text);
-        while (matcher.find()) {
-            String mention = matcher.group();
-            GetChat getChat = new GetChat(mention);
-            try {
-                Chat chat = bot.execute(getChat);
-                if (chat.getType().equals("private")) {
-                    continue;
-                }
-                int start = matcher.start();
-                if (start > secretWordToPass.length()) {
-                    String substring = text.substring(start - secretWordToPass.length(), start);
-                    if (secretWordToPass.equals(substring)) {
-                        text = text.replaceFirst(Pattern.quote(secretWordToPass + mention), " ".repeat(secretWordToPass.length()) + mention);
-                        continue;
-                    }
-                }
-                text = text.replace(mention, "*".repeat(mention.length()));
-            } catch (TelegramApiException ignored) {
-            }
-        }
+        String processedText = processMentions(formattedText);
+        processedText = processUrls(processedText);
 
-        matcher = urlPattern.matcher(text);
-        while (matcher.find()) {
-            String url = matcher.group();
-            if (urlsWhiteList.stream().anyMatch(url::startsWith)) {
-                continue;
-            }
-            int start = matcher.start();
-            if (start > secretWordToPass.length()) {
-                String substring = text.substring(start - secretWordToPass.length(), start);
-                if (secretWordToPass.equals(substring)) {
-                    text = text.replaceFirst(Pattern.quote(secretWordToPass + url), " ".repeat(secretWordToPass.length()) + url);
-                    continue;
-                }
-            }
-            text = text.replace(url, "*".repeat(url.length()));
-        }
-        return text;
+        return new ProcessedMessage(processedText, adjustedEntities);
     }
 
     public boolean hasLinksInMessage(String text, List<MessageEntity> entities) {
-        if (urlPattern.matcher(text).find() || mentionPattern.matcher(text).find()) {
-            return true;
-        }
-        return entities.stream()
+        boolean hasPatternMatches = urlPattern.matcher(text).find() || mentionPattern.matcher(text).find();
+        boolean hasLinkEntities = entities.stream()
                 .map(MessageEntity::getType)
-                .anyMatch(type -> "text_link".equals(type) || "url".equals(type));
+                .anyMatch(type -> TEXT_LINK_TYPE.equals(type) || URL_TYPE.equals(type));
+
+        return hasPatternMatches || hasLinkEntities;
     }
 
-    private MessageEntity userMention(Message message, String username) {
+    public boolean hasOnlyAllowedLinks(String text, List<MessageEntity> entities) {
+        boolean onlyAllowedUrls = urlPattern.matcher(text).results()
+                .map(MatchResult::group)
+                .allMatch(this::isUrlInWhitelist);
+        boolean onlyAllowedTextLinks = entities.stream()
+                .filter(entity -> TEXT_LINK_TYPE.equals(entity.getType()))
+                .allMatch(entity -> isUrlInWhitelist(entity.getUrl()));
+
+        return onlyAllowedUrls && onlyAllowedTextLinks && hasOnlyUserMentions(text);
+    }
+
+    private String formatUsername(Message message) {
+        String lastName = message.getFrom().getLastName();
+        return message.getFrom().getFirstName() + (lastName == null ? "" : " " + lastName);
+    }
+
+    private List<MessageEntity> adjustEntities(List<MessageEntity> entities, String username) {
+        if (entities == null) {
+            return new ArrayList<>();
+        }
+        int offset = 2 + username.length(); // For the format: "username:\n"
+
+        return entities.stream()
+                .filter(this::isAllowedTextLinkEntity)
+                .peek(entity -> entity.setOffset(entity.getOffset() + offset))
+                .collect(Collectors.toList());
+    }
+
+    private boolean isAllowedTextLinkEntity(MessageEntity entity) {
+        if (TEXT_LINK_TYPE.equals(entity.getType())) {
+            return isUrlInWhitelist(entity.getUrl());
+        }
+        return true;
+    }
+
+    private boolean isUrlInWhitelist(String url) {
+        return urlsWhiteList.stream().anyMatch(url::startsWith);
+    }
+
+    private MessageEntity createUserMention(Message message, String username) {
         return MessageEntity.builder()
                 .user(message.getFrom())
-                .type("text_mention")
+                .type(TEXT_MENTION_TYPE)
                 .user(message.getFrom())
                 .offset(0)
                 .length(username.length())
                 .build();
     }
 
-    public boolean hasOnlyAllowedLinks(String text, List<MessageEntity> entities) {
-        boolean onlyAllowedUrls = urlPattern.matcher(text).results()
-                .map(MatchResult::group)
-                .allMatch(url -> urlsWhiteList.stream().anyMatch(url::startsWith));
-        boolean onlyAllowedTextLinks = entities.stream()
-                .filter(entity -> "text_link".equals(entity.getType()))
-                .allMatch(entity -> urlsWhiteList.stream().anyMatch(entity.getUrl()::startsWith));
-        return onlyAllowedUrls && onlyAllowedTextLinks && hasOnlyUserMentions(text);
+    private String processMentions(String text) {
+        Matcher matcher = mentionPattern.matcher(text);
+        StringBuilder result = new StringBuilder(text);
+
+        while (matcher.find()) {
+            String mention = matcher.group();
+            int start = matcher.start();
+
+            if (!isAllowedMention(mention, text, start)) {
+                int replaceStart = matcher.start();
+                int replaceEnd = matcher.end();
+                String replacement = "*".repeat(mention.length());
+
+                result.replace(replaceStart, replaceEnd, replacement);
+            }
+        }
+
+        return result.toString();
+    }
+
+    private boolean isAllowedMention(String mention, String text, int mentionStart) {
+        try {
+            Chat chat = bot.execute(new GetChat(mention));
+            if (!PRIVATE_CHAT_TYPE.equals(chat.getType())) {
+                return hasPrecedingSecretWord(text, mentionStart);
+            }
+            return true;
+        } catch (TelegramApiException ignored) {
+            return true;
+        }
+    }
+
+    private boolean hasPrecedingSecretWord(String text, int position) {
+        if (position > secretWordToPass.length()) {
+            String substring = text.substring(position - secretWordToPass.length(), position);
+            return secretWordToPass.equals(substring);
+        }
+        return false;
+    }
+
+    private String processUrls(String text) {
+        Matcher matcher = urlPattern.matcher(text);
+        StringBuilder result = new StringBuilder(text);
+        int offset = 0;
+
+        while (matcher.find()) {
+            String url = matcher.group();
+            int start = matcher.start();
+            if (!isUrlInWhitelist(url) && !hasPrecedingSecretWord(text, start)) {
+                result.replace(matcher.start() + offset, matcher.end() + offset, "*".repeat(url.length()));
+            }
+        }
+
+        return result.toString();
     }
 
     private boolean hasOnlyUserMentions(String text) {
         Matcher matcher = mentionPattern.matcher(text);
         while (matcher.find()) {
             String mention = matcher.group();
-            GetChat getChat = new GetChat(mention);
             try {
-                Chat chat = bot.execute(getChat);
-                if (!chat.getType().equals("private")) {
+                Chat chat = bot.execute(new GetChat(mention));
+                if (!PRIVATE_CHAT_TYPE.equals(chat.getType())) {
                     return false;
                 }
             } catch (TelegramApiException ignored) {
+                return true;
             }
         }
         return true;

@@ -7,14 +7,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.*;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
-import org.telegram.telegrambots.meta.api.objects.MessageEntity;
-import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.*;
+import org.telegram.telegrambots.meta.api.objects.games.Animation;
+import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
-import java.io.Serializable;
 import java.util.List;
 
 @Slf4j
@@ -31,6 +30,15 @@ public class TelegramBot extends TelegramLongPollingBot {
     }
 
     @Override
+    public void onUpdateReceived(Update update) {
+        try {
+            updateHandler.handle(update);
+        } catch (Exception e) {
+            log.error(e.getMessage(), e);
+        }
+    }
+
+    @Override
     public String getBotUsername() {
         return properties.getUsername();
     }
@@ -41,7 +49,75 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .chatId(chatId)
                 .entities(entities)
                 .build();
-        this.perform(sendMessage);
+        try {
+            this.execute(sendMessage);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendPhoto(String caption, Long chatId, List<MessageEntity> entities, List<PhotoSize> photos) {
+        SendPhoto sendPhoto = SendPhoto.builder()
+                .chatId(chatId)
+                .caption(caption)
+                .photo(new InputFile(photos.get(photos.size() - 1).getFileId()))
+                .captionEntities(entities)
+                .build();
+        try {
+            this.execute(sendPhoto);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendVideo(String caption, Long chatId, List<MessageEntity> entities, Video video) {
+        SendVideo sendVideo = SendVideo.builder()
+                .chatId(chatId)
+                .caption(caption)
+                .video(new InputFile(video.getFileId()))
+                .captionEntities(entities)
+                .build();
+        if (video.getThumbnail() != null) {
+            sendVideo.setThumbnail(new InputFile(video.getThumbnail().getFileId()));
+        }
+
+        try {
+            this.execute(sendVideo);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendDocument(String caption, Long chatId, List<MessageEntity> entities, Document document) {
+        SendDocument sendDocument = SendDocument.builder()
+                .chatId(chatId)
+                .document(new InputFile(document.getFileId()))
+                .caption(caption)
+                .captionEntities(entities)
+                .build();
+        if (document.getThumbnail() != null) {
+            sendDocument.setThumbnail(new InputFile(document.getThumbnail().getFileId()));
+        }
+
+        try {
+            this.execute(sendDocument);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendAudio(String caption, Long chatId, List<MessageEntity> entities, Audio audio) {
+        SendAudio sendAudio = SendAudio.builder()
+                .chatId(chatId)
+                .audio(new InputFile(audio.getFileId()))
+                .caption(caption)
+                .captionEntities(entities)
+                .build();
+        try {
+            this.execute(sendAudio);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
     }
 
     public void deleteMessage(long chatId, int messageId) {
@@ -49,23 +125,40 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .chatId(String.valueOf(chatId))
                 .messageId(messageId)
                 .build();
-        this.perform(deleteMessage);
-    }
-
-    public void perform(BotApiMethod<? extends Serializable> method) {
         try {
-            super.execute(method);
+            this.execute(deleteMessage);
         } catch (TelegramApiException e) {
-            throw new RuntimeException("Failed to execute method", e);
+            log.error(e.getMessage());
         }
     }
 
-    @Override
-    public void onUpdateReceived(Update update) {
+    public void sendMediaGroup(Long chatId, List<InputMedia> medias) {
+        SendMediaGroup sendMediaGroup = SendMediaGroup.builder()
+                .chatId(chatId)
+                .medias(medias)
+                .build();
         try {
-            updateHandler.handle(update);
-        } catch (Exception e) {
-            log.error(e.getMessage(), e);
+            this.execute(sendMediaGroup);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendAnimation(String caption, long chatId, List<MessageEntity> captionEntities, Animation animation) {
+        SendAnimation sendAnimation = SendAnimation.builder()
+                .chatId(chatId)
+                .animation(new InputFile(animation.getFileId()))
+                .caption(caption)
+                .captionEntities(captionEntities)
+                .build();
+        if (animation.getThumbnail() != null) {
+            sendAnimation.setThumbnail(new InputFile(animation.getThumbnail().getFileId()));
+        }
+
+        try {
+            this.execute(sendAnimation);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
         }
     }
 }
