@@ -44,6 +44,32 @@ public class TelegramBot extends TelegramLongPollingBot {
         return properties.getUsername();
     }
 
+    public void sendMessage(String text, Long chatId) {
+        SendMessage sendMessage = SendMessage.builder()
+                .text(text)
+                .chatId(chatId)
+                .build();
+        try {
+            this.execute(sendMessage);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
+    public void sendReplyMessage(String text, Long chatId, int replyToMessageId, List<MessageEntity> entities) {
+        SendMessage sendMessage = SendMessage.builder()
+                .text(text)
+                .chatId(chatId)
+                .replyToMessageId(replyToMessageId)
+                .entities(entities)
+                .build();
+        try {
+            this.execute(sendMessage);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage());
+        }
+    }
+
     public void sendMessage(String text, Long chatId, List<MessageEntity> entities) {
         SendMessage sendMessage = SendMessage.builder()
                 .text(text)

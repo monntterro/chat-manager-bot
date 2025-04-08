@@ -35,6 +35,7 @@ public class MessageTextService {
 
     @Value("${telegram.secret-word-to-pass}")
     private String secretWordToPass;
+
     @Value("#{'${telegram.urls.white-list}'.split(',\\s+')}")
     private List<String> urlsWhiteList;
 
