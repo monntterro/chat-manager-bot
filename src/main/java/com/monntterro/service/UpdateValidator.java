@@ -28,6 +28,15 @@ public class UpdateValidator {
     }
 
     private boolean isAvailableChat(Update update) {
-        return chatsWhiteList.contains(update.getMessage().getChat().getId());
+        long chatId;
+        if (update.hasMessage()) {
+            chatId = update.getMessage().getChatId();
+        } else if (update.hasEditedMessage()) {
+            chatId = update.getEditedMessage().getChatId();
+        } else {
+            return false;
+        }
+
+        return chatsWhiteList.contains(chatId);
     }
 }
