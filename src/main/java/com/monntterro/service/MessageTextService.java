@@ -153,13 +153,13 @@ public class MessageTextService {
     private String processUrls(String text) {
         Matcher matcher = urlPattern.matcher(text);
         StringBuilder result = new StringBuilder(text);
-        int offset = 0;
-
         while (matcher.find()) {
             String url = matcher.group();
             int start = matcher.start();
-            if (!isUrlInWhitelist(url) && !hasPrecedingSecretWord(text, start)) {
-                result.replace(matcher.start() + offset, matcher.end() + offset, "*".repeat(url.length()));
+            if (hasPrecedingSecretWord(text, start)) {
+                result.replace(start - secretWordToPass.length(), start, " ".repeat(secretWordToPass.length()));
+            } else if (!isUrlInWhitelist(url)) {
+                result.replace(matcher.start(), matcher.end(), "*".repeat(url.length()));
             }
         }
 
