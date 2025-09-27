@@ -38,5 +38,11 @@ Input: Check it out https://allowed.com
 Output: Check it out https://allowed.com
 ```
 
+## 🧱 Stack
 
-
+- **Java 17**
+- **Gradle**
+- **Docker**
+- **Spring Boot**
+- **Telegram Bot**
+- *And others*
