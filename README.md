@@ -4,12 +4,13 @@
 
 **Chat Manager Bot** is a Telegram bot designed to manage and organize group chats.
 
-- 🚫 Deletes all links in messages
-- ✅ Supports **whitelist** of allowed links
-- 🔑 Allows you to use the **secret word** to transmit any link (it is enough to specify it before the link)
-
-The bot works with all types of messages: formatted text, photos, audio and video.  
-It also correctly handles situations when a user tries to **change an already sent message**.
+- 🚫 Removes all links in messages.
+- ✅ Supports whitelist of allowed links.
+- 🔑 Allows the use of a secret word to transmit any link (just specify it before the link).
+- 🖼 Works with all types of messages: formatted text, photos, audio, video, and more.
+- ✏️ Correctly handles situations when a user edits an already sent message.
+- 👤 Always shows who sent the message; the sender is indicated at the beginning of the message.
+- 🔒 Access can be restricted; you can specify who is allowed to use the bot.
 
 ## Examples
 
