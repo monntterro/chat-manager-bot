@@ -1,10 +1,8 @@
 server:
   port: 8081
-
 spring:
   application:
-    name: chat-delete-links-bot
-
+    name: chat-manager-bot
 telegram:
   secret-word-to-pass: ${SECRET_WORD_TO_PASS}
   urls:
@@ -13,3 +11,12 @@ telegram:
     white-list: ${CHAT_IDS_WHITE_LIST}
   bot:
     token: ${BOT_TOKEN}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  prometheus:
+    metrics:
+      export:
+        enabled: true

@@ -37,6 +37,10 @@ dependencies {
     implementation 'org.apache.commons:commons-lang3:3.18.0' // vulnerability from lib above
     implementation "org.telegram:telegrambots-client:${telegrambots}"
 
+    // Metrics
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
     // Lombok
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'

@@ -4,6 +4,7 @@ import com.monntterro.model.AlbumData;
 import com.monntterro.model.ProcessedMessage;
 import com.monntterro.model.mediafile.MediaFile;
 import com.monntterro.model.mediafile.MediaType;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,8 +36,9 @@ public class FileService {
     private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final TelegramBot bot;
     private final MessageTextService messageTextService;
+    private final MeterRegistry meterRegistry;
 
-    public void handleVideoAlbum(Message message, String caption, List<MessageEntity> entities) {
+    public void handleVideos(Message message, String caption, List<MessageEntity> entities) {
         Video video = message.getVideo();
         String thumbnailId = Optional.ofNullable(video.getThumbnail())
                 .map(PhotoSize::getFileId)
@@ -46,7 +48,7 @@ public class FileService {
         handleAlbumMedia(message, mediaFile, caption, entities);
     }
 
-    public void handlePhotoAlbum(Message message, String caption, List<MessageEntity> entities) {
+    public void handlePhotos(Message message, String caption, List<MessageEntity> entities) {
         Optional<String> fileIdOpt = message.getPhoto().stream()
                 .max(Comparator.comparingInt(PhotoSize::getFileSize))
                 .map(PhotoSize::getFileId);
@@ -81,6 +83,7 @@ public class FileService {
     private void sendAlbumBack(Long chatId, String mediaGroupId) {
         AlbumData albumData = albumCache.get(mediaGroupId);
         if (albumData == null || shouldSkipSending(albumData)) {
+            meterRegistry.counter("message.skipped").increment();
             return;
         }
 
