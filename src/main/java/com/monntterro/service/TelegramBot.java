@@ -1,37 +1,59 @@
-package com.monntterro;
+package com.monntterro.service;
 
+import com.monntterro.command.GetChatId;
 import com.monntterro.config.props.TelegramBotProperties;
 import com.monntterro.handler.UpdateHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.springframework.stereotype.Service;
+import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
+import org.telegram.telegrambots.longpolling.interfaces.LongPollingUpdateConsumer;
+import org.telegram.telegrambots.longpolling.starter.AfterBotRegistration;
+import org.telegram.telegrambots.longpolling.starter.SpringLongPollingBot;
+import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.commands.SetMyCommands;
+import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat;
 import org.telegram.telegrambots.meta.api.methods.send.*;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.DeleteMessage;
 import org.telegram.telegrambots.meta.api.objects.*;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.commands.BotCommand;
 import org.telegram.telegrambots.meta.api.objects.games.Animation;
 import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
+import org.telegram.telegrambots.meta.api.objects.photo.PhotoSize;
 import org.telegram.telegrambots.meta.api.objects.stickers.Sticker;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.List;
 
 @Slf4j
-@Component
-public class TelegramBot extends TelegramLongPollingBot {
+@Service
+public class TelegramBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
     private final TelegramBotProperties properties;
     private final UpdateHandler updateHandler;
+    private final TelegramClient telegramClient;
 
     @Autowired
     public TelegramBot(TelegramBotProperties properties, @Lazy UpdateHandler updateHandler) {
-        super(properties.getToken());
         this.properties = properties;
         this.updateHandler = updateHandler;
+        telegramClient = new OkHttpTelegramClient(properties.getToken());
     }
 
     @Override
-    public void onUpdateReceived(Update update) {
+    public String getBotToken() {
+        return properties.getToken();
+    }
+
+    @Override
+    public LongPollingUpdateConsumer getUpdatesConsumer() {
+        return this;
+    }
+
+    @Override
+    public void consume(Update update) {
         try {
             updateHandler.handle(update);
         } catch (Exception e) {
@@ -39,9 +61,18 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
     }
 
-    @Override
-    public String getBotUsername() {
-        return properties.getUsername();
+    @AfterBotRegistration
+    public void afterBotRegistration() {
+        SetMyCommands setMyCommands = SetMyCommands.builder()
+                .commands(List.of(
+                        new BotCommand(GetChatId.COMMAND, "get chat id")
+                ))
+                .build();
+        try {
+            telegramClient.execute(setMyCommands);
+        } catch (TelegramApiException e) {
+            log.error(e.getMessage(), e);
+        }
     }
 
     public void sendMessage(String text, Long chatId) {
@@ -50,7 +81,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .chatId(chatId)
                 .build();
         try {
-            this.execute(sendMessage);
+            telegramClient.execute(sendMessage);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -64,7 +95,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .entities(entities)
                 .build();
         try {
-            this.execute(sendMessage);
+            telegramClient.execute(sendMessage);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -77,7 +108,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .entities(entities)
                 .build();
         try {
-            this.execute(sendMessage);
+            telegramClient.execute(sendMessage);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -87,11 +118,11 @@ public class TelegramBot extends TelegramLongPollingBot {
         SendPhoto sendPhoto = SendPhoto.builder()
                 .chatId(chatId)
                 .caption(caption)
-                .photo(new InputFile(photos.get(photos.size() - 1).getFileId()))
+                .photo(new InputFile(photos.getLast().getFileId()))
                 .captionEntities(entities)
                 .build();
         try {
-            this.execute(sendPhoto);
+            telegramClient.execute(sendPhoto);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -109,7 +140,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         try {
-            this.execute(sendVideo);
+            telegramClient.execute(sendVideo);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -127,7 +158,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         try {
-            this.execute(sendDocument);
+            telegramClient.execute(sendDocument);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -141,7 +172,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .captionEntities(entities)
                 .build();
         try {
-            this.execute(sendAudio);
+            telegramClient.execute(sendAudio);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -153,7 +184,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .messageId(messageId)
                 .build();
         try {
-            this.execute(deleteMessage);
+            telegramClient.execute(deleteMessage);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -165,7 +196,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .medias(medias)
                 .build();
         try {
-            this.execute(sendMediaGroup);
+            telegramClient.execute(sendMediaGroup);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -183,7 +214,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         try {
-            this.execute(sendAnimation);
+            telegramClient.execute(sendAnimation);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -197,7 +228,7 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .build();
 
         try {
-            this.execute(sendSticker);
+            telegramClient.execute(sendSticker);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -213,7 +244,7 @@ public class TelegramBot extends TelegramLongPollingBot {
         }
 
         try {
-            this.execute(sendVideoNote);
+            telegramClient.execute(sendVideoNote);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
@@ -228,9 +259,13 @@ public class TelegramBot extends TelegramLongPollingBot {
                 .build();
 
         try {
-            this.execute(sendVoice);
+            telegramClient.execute(sendVoice);
         } catch (TelegramApiException e) {
             log.error(e.getMessage());
         }
+    }
+
+    public Chat getChat(String chatId) throws TelegramApiException {
+        return telegramClient.execute(GetChat.builder().chatId(chatId).build());
     }
 }

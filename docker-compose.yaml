@@ -1,0 +1,12 @@
+services:
+  app:
+    image: chat-delete-links-bot:latest
+    build:
+      context: .
+      args:
+        DOCKER_BUILDKIT: 1
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "8081:8081"

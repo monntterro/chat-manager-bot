@@ -1,16 +1,16 @@
 package com.monntterro.handler;
 
-import com.monntterro.processor.UrlDeleteProcessor;
+import com.monntterro.service.UrlDeleteService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 
 @Service
 @RequiredArgsConstructor
 public class MessageHandler {
-    private final UrlDeleteProcessor urlDeleteProcessor;
+    private final UrlDeleteService urlDeleteService;
 
     public void handle(Message message) {
-        urlDeleteProcessor.process(message);
+        urlDeleteService.process(message);
     }
 }

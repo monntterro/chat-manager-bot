@@ -3,7 +3,7 @@ package com.monntterro.model.mediafile;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 
 @Data
 @NoArgsConstructor

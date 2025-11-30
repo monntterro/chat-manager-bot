@@ -13,4 +13,3 @@ telegram:
     white-list: ${CHAT_IDS_WHITE_LIST}
   bot:
     token: ${BOT_TOKEN}
-    username: ${BOT_USERNAME}

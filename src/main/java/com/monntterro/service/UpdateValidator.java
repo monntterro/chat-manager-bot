@@ -1,6 +1,5 @@
 package com.monntterro.service;
 
-import com.monntterro.TelegramBot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -16,7 +15,7 @@ public class UpdateValidator {
     @Value("#{'${telegram.chats.white-list}'.split(',\\s+')}")
     private Set<Long> chatsWhiteList;
 
-    public boolean validate(Update update) {
+    public boolean isValid(Update update) {
         if (isAvailableChat(update)) {
             return true;
         }
