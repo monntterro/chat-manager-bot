@@ -1,6 +1,7 @@
 package com.monntterro.service;
 
 import com.monntterro.model.ProcessedMessage;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
@@ -16,6 +17,7 @@ public class UrlDeleteService {
     private final TelegramBot bot;
     private final FileService fileService;
     private final MessageTextService messageTextService;
+    private final MeterRegistry meterRegistry;
 
     public void process(Message message) {
         String text = extractText(message).orElse(null);
@@ -23,23 +25,26 @@ public class UrlDeleteService {
 
         if (message.getMediaGroupId() != null) {
             processMediaGroup(message, text, entities);
+            meterRegistry.counter("message.processed").increment();
             return;
         }
         if (shouldSkipProcessing(message, text, entities)) {
+            meterRegistry.counter("message.skipped").increment();
             return;
         }
 
         ProcessedMessage processedMessage = messageTextService.deleteLinks(message, text, entities);
-        sendProcessedMessage(message, processedMessage.text(), processedMessage.entities());
-
         bot.deleteMessage(message.getChatId(), message.getMessageId());
+
+        sendProcessedMessage(message, processedMessage.text(), processedMessage.entities());
+        meterRegistry.counter("message.processed").increment();
     }
 
     private void processMediaGroup(Message message, String text, List<MessageEntity> entities) {
         if (message.hasPhoto()) {
-            fileService.handlePhotoAlbum(message, text, entities);
+            fileService.handlePhotos(message, text, entities);
         } else if (message.hasVideo()) {
-            fileService.handleVideoAlbum(message, text, entities);
+            fileService.handleVideos(message, text, entities);
         }
     }
 
