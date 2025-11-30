@@ -1,26 +1,24 @@
-package com.monntterro.processor;
+package com.monntterro.service;
 
-import com.monntterro.TelegramBot;
-import com.monntterro.service.FileService;
-import com.monntterro.service.MessageTextService;
-import com.monntterro.service.model.ProcessedMessage;
+import com.monntterro.model.ProcessedMessage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
-public class UrlDeleteProcessor {
+public class UrlDeleteService {
     private final TelegramBot bot;
     private final FileService fileService;
     private final MessageTextService messageTextService;
 
     public void process(Message message) {
-        String text = extractText(message);
+        String text = extractText(message).orElse(null);
         List<MessageEntity> entities = extractEntities(message);
 
         if (message.getMediaGroupId() != null) {
@@ -32,9 +30,7 @@ public class UrlDeleteProcessor {
         }
 
         ProcessedMessage processedMessage = messageTextService.deleteLinks(message, text, entities);
-        text = processedMessage.text();
-        entities = processedMessage.entities();
-        sendProcessedMessage(message, text, entities);
+        sendProcessedMessage(message, processedMessage.text(), processedMessage.entities());
 
         bot.deleteMessage(message.getChatId(), message.getMessageId());
     }
@@ -78,13 +74,13 @@ public class UrlDeleteProcessor {
         }
     }
 
-    private String extractText(Message message) {
+    private Optional<String> extractText(Message message) {
         if (message.hasText()) {
-            return message.getText();
-        } else if (message.getCaption() != null) {
-            return message.getCaption();
+            return Optional.of(message.getText());
+        } else if (message.hasCaption()) {
+            return Optional.of(message.getCaption());
         }
-        return null;
+        return Optional.empty();
     }
 
     private List<MessageEntity> extractEntities(Message message) {

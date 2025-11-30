@@ -1,4 +1,4 @@
-package com.monntterro.service.model;
+package com.monntterro.model;
 
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
 

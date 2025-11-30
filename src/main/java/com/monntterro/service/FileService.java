@@ -1,17 +1,20 @@
 package com.monntterro.service;
 
-import com.monntterro.TelegramBot;
 import com.monntterro.model.AlbumData;
+import com.monntterro.model.ProcessedMessage;
 import com.monntterro.model.mediafile.MediaFile;
 import com.monntterro.model.mediafile.MediaType;
-import com.monntterro.service.model.ProcessedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.objects.*;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
+import org.telegram.telegrambots.meta.api.objects.MessageEntity;
+import org.telegram.telegrambots.meta.api.objects.Video;
 import org.telegram.telegrambots.meta.api.objects.media.InputMedia;
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaPhoto;
 import org.telegram.telegrambots.meta.api.objects.media.InputMediaVideo;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.api.objects.photo.PhotoSize;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -26,10 +29,10 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class FileService {
-    private final ConcurrentHashMap<String, AlbumData> albumCache = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private static final int ALBUM_PROCESSING_DELAY_SECONDS = 3;
 
+    private final ConcurrentHashMap<String, AlbumData> albumCache = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private final TelegramBot bot;
     private final MessageTextService messageTextService;
 
@@ -38,27 +41,28 @@ public class FileService {
         String thumbnailId = Optional.ofNullable(video.getThumbnail())
                 .map(PhotoSize::getFileId)
                 .orElse(null);
-        MediaFile mediaFile = new MediaFile(video.getFileId(), thumbnailId, MediaType.VIDEO, message);
 
+        MediaFile mediaFile = new MediaFile(video.getFileId(), thumbnailId, MediaType.VIDEO, message);
         handleAlbumMedia(message, mediaFile, caption, entities);
     }
 
     public void handlePhotoAlbum(Message message, String caption, List<MessageEntity> entities) {
-        String fileId = message.getPhoto().stream()
+        Optional<String> fileIdOpt = message.getPhoto().stream()
                 .max(Comparator.comparingInt(PhotoSize::getFileSize))
-                .map(PhotoSize::getFileId)
-                .orElse(null);
+                .map(PhotoSize::getFileId);
 
-        if (fileId == null) {
+        if (fileIdOpt.isEmpty()) {
             log.error("Could not find photo ID");
             return;
         }
-        MediaFile mediaFile = new MediaFile(fileId, null, MediaType.PHOTO, message);
 
+        MediaFile mediaFile = new MediaFile(fileIdOpt.get(), null, MediaType.PHOTO, message);
         handleAlbumMedia(message, mediaFile, caption, entities);
     }
 
     private void handleAlbumMedia(Message message, MediaFile mediaFile, String caption, List<MessageEntity> entities) {
+        bot.deleteMessage(message.getChatId(), message.getMessageId());
+
         String mediaGroupId = message.getMediaGroupId();
         AlbumData albumData = albumCache.computeIfAbsent(mediaGroupId, k -> new AlbumData());
         albumData.getMediaFiles().add(mediaFile);
@@ -80,10 +84,7 @@ public class FileService {
             return;
         }
 
-        List<InputMedia> mediaList = createMediaList(albumData);
-        albumData.getMediaFiles()
-                .forEach(mediaFile -> bot.deleteMessage(chatId, mediaFile.getMessage().getMessageId()));
-        bot.sendMediaGroup(chatId, mediaList);
+        bot.sendMediaGroup(chatId, createMediaList(albumData));
         albumCache.remove(mediaGroupId);
     }
 

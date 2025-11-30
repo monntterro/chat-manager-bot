@@ -1,15 +1,13 @@
 package com.monntterro.service;
 
-import com.monntterro.TelegramBot;
-import com.monntterro.service.model.ProcessedMessage;
+import com.monntterro.model.ProcessedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.methods.groupadministration.GetChat;
-import org.telegram.telegrambots.meta.api.objects.Chat;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.MessageEntity;
+import org.telegram.telegrambots.meta.api.objects.chat.Chat;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 
 import java.util.ArrayList;
@@ -41,12 +39,12 @@ public class MessageTextService {
 
     public ProcessedMessage deleteLinks(Message message, String text, List<MessageEntity> entities) {
         String username = formatUsername(message);
-        String formattedText = "%s:\n%s".formatted(username, text);
+        String newText = "%s:\n%s".formatted(username, text);
 
         List<MessageEntity> adjustedEntities = adjustEntities(entities, username);
         adjustedEntities.add(createUserMention(message, username));
 
-        String processedText = processMentions(formattedText);
+        String processedText = processMentions(newText);
         processedText = processUrls(processedText);
 
         return new ProcessedMessage(processedText, adjustedEntities);
@@ -84,12 +82,12 @@ public class MessageTextService {
         int offset = 2 + username.length(); // For the format: "username:\n"
 
         return entities.stream()
-                .filter(this::isAllowedTextLinkEntity)
+                .filter(this::isAllowedEntity)
                 .peek(entity -> entity.setOffset(entity.getOffset() + offset))
                 .collect(Collectors.toList());
     }
 
-    private boolean isAllowedTextLinkEntity(MessageEntity entity) {
+    private boolean isAllowedEntity(MessageEntity entity) {
         if (TEXT_LINK_TYPE.equals(entity.getType())) {
             return isUrlInWhitelist(entity.getUrl());
         }
@@ -132,7 +130,7 @@ public class MessageTextService {
 
     private boolean isAllowedMention(String mention, String text, int mentionStart) {
         try {
-            Chat chat = bot.execute(new GetChat(mention));
+            Chat chat = bot.getChat(mention);
             if (!PRIVATE_CHAT_TYPE.equals(chat.getType())) {
                 return hasPrecedingSecretWord(text, mentionStart);
             }
@@ -171,7 +169,7 @@ public class MessageTextService {
         while (matcher.find()) {
             String mention = matcher.group();
             try {
-                Chat chat = bot.execute(new GetChat(mention));
+                Chat chat = bot.getChat(mention);
                 if (!PRIVATE_CHAT_TYPE.equals(chat.getType())) {
                     return false;
                 }

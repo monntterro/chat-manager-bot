@@ -1,18 +1,17 @@
 package com.monntterro.handler;
 
-import com.monntterro.processor.CommandProcessor;
 import com.monntterro.service.UpdateValidator;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
 
 @Service
 @RequiredArgsConstructor
 public class UpdateHandler {
     private final MessageHandler messageHandler;
     private final UpdateValidator updateValidator;
-    private final CommandProcessor commandProcessor;
+    private final CommandHandler commandHandler;
 
     public void handle(Update update) {
         Message message = null;
@@ -24,10 +23,10 @@ public class UpdateHandler {
 
         if (message != null) {
             if (message.isCommand()) {
-                commandProcessor.process(message);
+                commandHandler.handle(message);
                 return;
             }
-            if (!updateValidator.validate(update)) {
+            if (!updateValidator.isValid(update)) {
                 return;
             }
             messageHandler.handle(message);
