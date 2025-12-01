@@ -63,8 +63,6 @@ public class FileService {
     }
 
     private void handleAlbumMedia(Message message, MediaFile mediaFile, String caption, List<MessageEntity> entities) {
-        bot.deleteMessage(message.getChatId(), message.getMessageId());
-
         String mediaGroupId = message.getMediaGroupId();
         AlbumData albumData = albumCache.computeIfAbsent(mediaGroupId, k -> new AlbumData());
         albumData.getMediaFiles().add(mediaFile);
@@ -87,6 +85,10 @@ public class FileService {
             return;
         }
 
+        List<InputMedia> mediaList = createMediaList(albumData);
+        albumData.getMediaFiles()
+                .forEach(mediaFile -> bot.deleteMessage(chatId, mediaFile.getMessage().getMessageId()));
+        bot.sendMediaGroup(chatId, mediaList);
         bot.sendMediaGroup(chatId, createMediaList(albumData));
         albumCache.remove(mediaGroupId);
     }
